@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Area Codes Map</title>
+    <title>Phone Codes Map</title>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
@@ -10,7 +10,7 @@
       html, body { height: 100%; margin: 0; }
       #map { height: 100%; width: 100%; }
 
-      /* Area code labels */
+      /* Permanent tooltip labels (back to original style) */
       .area-label {
         background: rgba(255,255,255,0.85);
         border: 1px solid rgba(0,0,0,0.35);
@@ -21,30 +21,132 @@
         color: #000;
         box-shadow: 0 1px 3px rgba(0,0,0,0.25);
         pointer-events: none;
+        white-space: nowrap;
       }
       .leaflet-tooltip.area-label { border: none; }
       .leaflet-tooltip:before { display: none; }
 
-      /* Nested toggle box */
-      .toggle-box {
+      /* ---- Menu button + panel ---- */
+      .menu-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
         background: rgba(255,255,255,0.95);
-        padding: 10px 12px;
-        border-radius: 10px;
         box-shadow: 0 1px 6px rgba(0,0,0,0.25);
-        font: 14px/1.25 Arial, sans-serif;
-        min-width: 220px;
+        border: none;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        font: 18px/1 Arial, sans-serif;
       }
-      .toggle-box .title { font-weight: 800; margin-bottom: 8px; }
-      .toggle-box label {
+      .menu-panel {
+        background: rgba(255,255,255,0.96);
+        padding: 12px 12px;
+        border-radius: 12px;
+        box-shadow: 0 1px 10px rgba(0,0,0,0.28);
+        width: 340px;
+        font: 14px/1.25 Arial, sans-serif;
+      }
+      .menu-panel .title {
+        font-weight: 800;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .menu-panel .close {
+        border: none;
+        background: transparent;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 0 4px;
+      }
+
+      .section-title { font-weight: 800; margin: 10px 0 6px; }
+
+      .item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 0;
+      }
+      .left {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin: 6px 0;
+        min-width: 0;
+      }
+      .indent-1 { padding-left: 14px; }
+      .indent-2 { padding-left: 28px; }
+
+      label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
         cursor: pointer;
         user-select: none;
+        min-width: 0;
       }
-      .toggle-box .indent { margin-left: 22px; }
-      .toggle-box input { width: 16px; height: 16px; }
+      input[type="checkbox"] { width: 16px; height: 16px; }
+
+      /* "Go to" icon button */
+      .go-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 10px;
+        border: 1px solid rgba(0,0,0,0.15);
+        background: rgba(255,255,255,0.9);
+        cursor: pointer;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+      }
+      .go-btn:hover { background: rgba(255,255,255,1); }
+
+      /* Filter dropdown */
+      .filter-wrap { display: flex; align-items: center; gap: 8px; }
+      .filter-btn {
+        border: 1px solid rgba(0,0,0,0.15);
+        background: rgba(255,255,255,0.92);
+        border-radius: 10px;
+        padding: 4px 8px;
+        cursor: pointer;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+        font: 13px/1 Arial, sans-serif;
+      }
+      .filter-panel {
+        display: none;
+        margin: 6px 0 0 28px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(0,0,0,0.12);
+        background: rgba(255,255,255,0.95);
+      }
+      .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px 10px;
+        margin-top: 6px;
+      }
+      .filter-panel .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+      }
+      .filter-actions { display: flex; gap: 8px; margin-top: 8px; }
+      .small-btn {
+        border: 1px solid rgba(0,0,0,0.15);
+        background: rgba(255,255,255,0.92);
+        border-radius: 10px;
+        padding: 4px 8px;
+        cursor: pointer;
+        font: 12px/1 Arial, sans-serif;
+      }
+
+      .hint { font-size: 12px; opacity: 0.75; margin-top: 8px; }
     </style>
   </head>
 
@@ -55,146 +157,623 @@
 
     <script>
       // ---------------- Map
-      const map = L.map("map", { preferCanvas: true }).setView([0, 0], 2);
+      const map = L.map("map", { preferCanvas: false }).setView([20, 0], 2);
 
-      // ---------------- Basemaps (DEFAULT = original OSM)
+      // Basemaps (OSM default)
       const osmStandard = L.tileLayer(
         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-          maxZoom: 19,
-          attribution: "&copy; OpenStreetMap contributors",
-        }
-      ).addTo(map); // ✅ default
+        { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }
+      ).addTo(map);
 
       const cartoLight = L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-        {
-          subdomains: "abcd",
-          maxZoom: 19,
-          attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-        }
+        { subdomains: "abcd", maxZoom: 19, attribution: "&copy; OpenStreetMap contributors &copy; CARTO" }
       );
 
       const esriStreets = L.tileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-        {
-          maxZoom: 19,
-          attribution: "Tiles &copy; Esri",
-        }
+        { maxZoom: 19, attribution: "Tiles &copy; Esri" }
       );
 
-      // Basemap switcher (only basemaps)
       L.control.layers(
-        {
-          "OpenStreetMap (default)": osmStandard,
-          "Light (Google-like)": cartoLight,
-          "Esri Streets": esriStreets
-        },
+        { "OpenStreetMap (default)": osmStandard, "Light": cartoLight, "Esri Streets": esriStreets },
         null,
-        { collapsed: false }
+        { collapsed: true }
       ).addTo(map);
 
-      // ---------------- Color palette
-      const AREA_COLORS = {
-        1: "#b69bc9",
-        2: "#e6d8a3",
-        3: "#f2a65a",
-        4: "#2bb6b1",
-        5: "#a7f0d8",
-        6: "#fff200",
-        7: "#e8a6e6",
-        8: "#f18f8f",
-        9: "#3cff3c"
-      };
-
-      function firstDigit(code) {
-        if (!code) return null;
-        const d = parseInt(String(code)[0], 10);
-        return Number.isFinite(d) ? d : null;
+      // ---------------- Helpers
+      function parseCodes(codeStr) {
+        // Returns array of codes like ["470","678","770"] from "470/678/770"
+        if (codeStr == null) return [];
+        return String(codeStr).split(/[\/,\s]+/).map(s => s.trim()).filter(Boolean);
       }
 
-      // ---------------- Layer hierarchy
-      const brazilGroup = L.layerGroup();
-      const brazilAreaCodesGroup = L.layerGroup();
-      let geoLayer = null;
+      function digitsSetFromCodes(codeStr) {
+        // For filter matching: first digit of each code.
+        // "470/678/770" -> Set {4,6,7}
+        const codes = parseCodes(codeStr);
+        const set = new Set();
+        for (const c of codes) {
+          for (const ch of c) {
+            if (ch >= "0" && ch <= "9") { set.add(parseInt(ch, 10)); break; }
+          }
+        }
+        return set;
+      }
 
+      // ---------------- Palettes
+      const BR_COLORS = { 1:"#b69bc9",2:"#e6d8a3",3:"#f2a65a",4:"#2bb6b1",5:"#a7f0d8",6:"#fff200",7:"#e8a6e6",8:"#f18f8f",9:"#3cff3c" };
+      const US_COLORS = { 0:"#8dd3c7",1:"#ffffb3",2:"#bebada",3:"#fb8072",4:"#80b1d3",5:"#fdb462",6:"#b3de69",7:"#fccde5",8:"#d9d9d9",9:"#bc80bd" };
+
+      // ---------------- SVG stripe patterns (NO PLUGIN)
+      // We will create <pattern> definitions in Leaflet's SVG renderer
+      function ensureSvgDefs() {
+        const svg = map.getRenderer(map)._container; // Leaflet SVG element
+        if (!svg) return null;
+        let defs = svg.querySelector("defs");
+        if (!defs) {
+          defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+          svg.insertBefore(defs, svg.firstChild);
+        }
+        return defs;
+      }
+
+      const stripePatternIds = new Map(); // key -> id
+
+      function makeStripePatternId(key) {
+        if (stripePatternIds.has(key)) return stripePatternIds.get(key);
+        const id = "pat_" + key.replace(/[^a-zA-Z0-9_]/g, "_");
+        stripePatternIds.set(key, id);
+        return id;
+      }
+
+      function ensureStripePattern(colorA, colorB, key) {
+        const defs = ensureSvgDefs();
+        if (!defs) return null;
+
+        const id = makeStripePatternId(key);
+        if (defs.querySelector("#" + id)) return id;
+
+        const svgns = "http://www.w3.org/2000/svg";
+
+        // Pattern: diagonal stripes
+        const pattern = document.createElementNS(svgns, "pattern");
+        pattern.setAttribute("id", id);
+        pattern.setAttribute("patternUnits", "userSpaceOnUse");
+        pattern.setAttribute("width", "12");
+        pattern.setAttribute("height", "12");
+        pattern.setAttribute("patternTransform", "rotate(45)");
+
+        const bg = document.createElementNS(svgns, "rect");
+        bg.setAttribute("width", "12");
+        bg.setAttribute("height", "12");
+        bg.setAttribute("fill", colorB);
+
+        const stripe = document.createElementNS(svgns, "rect");
+        stripe.setAttribute("x", "0");
+        stripe.setAttribute("y", "0");
+        stripe.setAttribute("width", "6");
+        stripe.setAttribute("height", "12");
+        stripe.setAttribute("fill", colorA);
+
+        pattern.appendChild(bg);
+        pattern.appendChild(stripe);
+        defs.appendChild(pattern);
+
+        return id;
+      }
+
+      function setLayerFillToPattern(layer, patternId) {
+        // After layer is added, layer._path exists (SVG path)
+        if (layer && layer._path && patternId) {
+          layer._path.setAttribute("fill", `url(#${patternId})`);
+        }
+      }
+
+      function setLayerFillToColor(layer, color) {
+        if (layer && layer._path) layer._path.setAttribute("fill", color);
+      }
+
+      function setLayerFillToNone(layer) {
+        if (layer && layer._path) layer._path.setAttribute("fill", "none");
+      }
+
+      // ---------------- Hierarchy layer groups
+      const southAmericaGroup = L.layerGroup();
+      const northAmericaGroup = L.layerGroup();
+
+      const brazilGroup = L.layerGroup();
+      const usaGroup = L.layerGroup();
+
+      const brazilAreaCodesGroup = L.layerGroup();
+      const usaPhoneCodesGroup = L.layerGroup(); // renamed
+
+      southAmericaGroup.addLayer(brazilGroup);
+      brazilGroup.addLayer(brazilAreaCodesGroup);
+
+      northAmericaGroup.addLayer(usaGroup);
+      usaGroup.addLayer(usaPhoneCodesGroup);
+
+      // bounds
+      let brazilBounds = null;
+      const continentalUsBounds = L.latLngBounds(L.latLng(49.5, -125.0), L.latLng(24.4, -66.5));
+      const northAmericaBounds  = L.latLngBounds(L.latLng(72.0, -168.0), L.latLng(14.0, -52.0));
+      const southAmericaBounds  = L.latLngBounds(L.latLng(13.5, -81.5),  L.latLng(-56.5, -34.5));
+
+      // ---------------- Datasets for filtering (borders always visible)
+      // We keep polygons always on the map; filtering only changes:
+      // - fill opacity / fill style
+      // - tooltip presence
+      const datasets = {
+        br: {
+          group: brazilAreaCodesGroup,
+          palette: BR_COLORS,
+          features: [], // { layer, codeStr, digitsSet, baseFill, baseOpacity, isStriped, patternId, tooltipOptions }
+          allowedDigits: new Set([1,2,3,4,5,6,7,8,9]) // 1X..9X
+        },
+        us: {
+          group: usaPhoneCodesGroup,
+          palette: US_COLORS,
+          features: [],
+          allowedDigits: new Set([1,2,3,4,5,6,7,8,9]) // 1XX..9XX (still first digit)
+        }
+      };
+
+      function shouldShowFeature(dsKey, digitsSet) {
+        // Show if ANY digit in the feature is enabled.
+        // Multi-code features will match multiple filters (fix #6).
+        const allowed = datasets[dsKey].allowedDigits;
+        for (const d of digitsSet) if (allowed.has(d)) return true;
+        return false;
+      }
+
+      function applyFilter(dsKey) {
+        const ds = datasets[dsKey];
+
+        ds.features.forEach(f => {
+          const show = shouldShowFeature(dsKey, f.digitsSet);
+
+          // Always keep border
+          // When hidden: remove fill + remove tooltip
+          if (!show) {
+            f.layer.setStyle({ fillOpacity: 0, opacity: 0.55, weight: 1 }); // border stays
+            setLayerFillToNone(f.layer);
+            if (f.layer.getTooltip()) f.layer.unbindTooltip();
+            return;
+          }
+
+          // When shown: restore fill + tooltip
+          f.layer.setStyle({ fillOpacity: f.baseOpacity, opacity: 0.55, weight: 1 });
+
+          if (f.isStriped && f.patternId) {
+            setLayerFillToPattern(f.layer, f.patternId);
+          } else {
+            setLayerFillToColor(f.layer, f.baseFill);
+          }
+
+          if (!f.layer.getTooltip()) {
+            f.layer.bindTooltip(f.codeStr, f.tooltipOptions);
+          }
+        });
+      }
+
+      // ---------------- Load Brazil
       async function loadBrazilAreaCodes() {
         const res = await fetch("./brazil_area_codes.json");
+        if (!res.ok) throw new Error(`Could not load brazil_area_codes.json (HTTP ${res.status})`);
         const data = await res.json();
 
-        geoLayer = L.geoJSON(data, {
-          style: f => ({
-            color: "rgba(0,0,0,0.55)",
-            weight: 1,
-            fillColor: AREA_COLORS[firstDigit(f?.properties?.AreaCode)] || "#ccc",
-            fillOpacity: 0.65
-          }),
-          onEachFeature: (f, l) => {
-            const code = f?.properties?.AreaCode ?? "?";
-            l.bindPopup(`AreaCode: ${code}`);
-            l.bindTooltip(String(code), {
+        const geo = L.geoJSON(data, {
+          style: feat => {
+            const codeStr = feat?.properties?.AreaCode ?? "?";
+            const digitsSet = digitsSetFromCodes(codeStr);
+            // Brazil codes are basically 2-digit like 11..99, so first digit works for 1X..9X
+            const first = [...digitsSet][0] ?? null;
+            const fill = BR_COLORS[first] || "#ccc";
+            return {
+              color: "rgba(0,0,0,0.55)",
+              weight: 1,
+              fillColor: fill,
+              fillOpacity: 0.65
+            };
+          },
+          onEachFeature: (feat, layer) => {
+            const codeStr = String(feat?.properties?.AreaCode ?? "?");
+            const digitsSet = digitsSetFromCodes(codeStr);
+            const first = [...digitsSet][0] ?? null;
+            const fill = BR_COLORS[first] || "#ccc";
+
+            const tooltipOptions = {
               permanent: true,
               direction: "center",
               className: "area-label"
+            };
+
+            layer.bindPopup(`Brazil AreaCode: ${codeStr}`);
+            layer.bindTooltip(codeStr, tooltipOptions);
+
+            datasets.br.features.push({
+              layer,
+              codeStr,
+              digitsSet,
+              baseFill: fill,
+              baseOpacity: 0.65,
+              isStriped: false,
+              patternId: null,
+              tooltipOptions
             });
           }
         });
 
-        brazilAreaCodesGroup.addLayer(geoLayer);
-        brazilGroup.addLayer(brazilAreaCodesGroup);
+        geo.eachLayer(l => brazilAreaCodesGroup.addLayer(l));
+
+        const b = geo.getBounds();
+        if (b.isValid()) brazilBounds = b;
+
+        // Apply initial filter state
+        applyFilter("br");
       }
 
-      // ---------------- Custom nested toggle UI
-      const ToggleControl = L.Control.extend({
+      // ---------------- Load USA (striped for multi-code)
+      async function loadUsaPhoneCodes() {
+        const res = await fetch("./usa_phone_codes.json");
+        if (!res.ok) throw new Error(`Could not load usa_phone_codes.json (HTTP ${res.status})`);
+        const data = await res.json();
+
+        const geo = L.geoJSON(data, {
+          style: feat => {
+            const codeStr = feat?.properties?.AreaCode ?? "?";
+            const digitsSet = digitsSetFromCodes(codeStr);
+            const digits = [...digitsSet];
+
+            // solid fallback style (we will set pattern fill after add)
+            const first = digits[0] ?? null;
+            const fill = US_COLORS[first] || "#ccc";
+
+            return {
+              color: "rgba(0,0,0,0.55)",
+              weight: 1,
+              fillColor: fill,
+              fillOpacity: 0.65
+            };
+          },
+          onEachFeature: (feat, layer) => {
+            const codeStr = String(feat?.properties?.AreaCode ?? "?");
+            const st = feat?.properties?.STATE ?? "";
+            const digitsSet = digitsSetFromCodes(codeStr);
+            const digits = [...digitsSet];
+
+            const first = digits[0] ?? null;
+            const fill = US_COLORS[first] || "#ccc";
+
+            // Tooltip: original centered
+            // Special-case only "470/678/770" to nudge down (fix #3)
+            const tooltipOptions =
+              codeStr === "470/678/770"
+                ? { permanent: true, direction: "center", className: "area-label", offset: L.point(0, 20) }
+                : { permanent: true, direction: "center", className: "area-label" };
+
+            layer.bindPopup(`USA Phone codes: ${codeStr}${st ? ` (${st})` : ""}`);
+            layer.bindTooltip(codeStr, tooltipOptions);
+
+            // Determine striped: if multiple distinct first digits exist
+            let isStriped = false;
+            let patternId = null;
+
+            if (String(codeStr).includes("/") && digits.length >= 2) {
+              // Use first 2 digits present to create two-color stripes
+              const a = US_COLORS[digits[0]] || "#ccc";
+              const b = US_COLORS[digits[1]] || "#eee";
+              patternId = ensureStripePattern(a, b, `us_${digits[0]}_${digits[1]}`);
+              if (patternId) isStriped = true;
+            }
+
+            datasets.us.features.push({
+              layer,
+              codeStr,
+              digitsSet,
+              baseFill: fill,
+              baseOpacity: 0.65,
+              isStriped,
+              patternId,
+              tooltipOptions
+            });
+
+            // After path exists, set fill to pattern (if applicable)
+            layer.on("add", () => {
+              if (isStriped && patternId) setLayerFillToPattern(layer, patternId);
+            });
+          }
+        });
+
+        geo.eachLayer(l => usaPhoneCodesGroup.addLayer(l));
+
+        // Apply initial filter state
+        applyFilter("us");
+      }
+
+      // ---------------- Menu controls
+      const MenuButtonControl = L.Control.extend({
         options: { position: "topright" },
         onAdd() {
-          const div = L.DomUtil.create("div", "toggle-box");
+          const btn = L.DomUtil.create("button", "menu-btn");
+          btn.type = "button";
+          btn.title = "Menu";
+          btn.innerHTML = "☰";
+          L.DomEvent.disableClickPropagation(btn);
+          btn.addEventListener("click", () => toggleMenu());
+          return btn;
+        }
+      });
+
+      const MenuPanelControl = L.Control.extend({
+        options: { position: "topright" },
+        onAdd() {
+          const div = L.DomUtil.create("div", "menu-panel");
+          div.style.display = "none";
+
           div.innerHTML = `
-            <div class="title">Layers</div>
-            <label>
-              <input id="toggle-br" type="checkbox" checked />
-              Brazil
-            </label>
-            <label class="indent">
-              <input id="toggle-br-ac" type="checkbox" checked />
-              Area codes
-            </label>
+            <div class="title">
+              <span>Layers</span>
+              <button class="close" type="button" title="Close">✕</button>
+            </div>
+
+            <div class="section-title">Continents</div>
+
+            <!-- SOUTH AMERICA -->
+            <div class="item">
+              <div class="left">
+                <label><input id="toggle-sa" type="checkbox" checked /> South America</label>
+              </div>
+              <button id="go-sa" class="go-btn" title="Go to South America" type="button">🌍</button>
+            </div>
+
+            <div class="item indent-1">
+              <div class="left">
+                <label><input id="toggle-br" type="checkbox" checked /> Brazil</label>
+              </div>
+              <button id="go-br" class="go-btn" title="Go to Brazil" type="button">🌍</button>
+            </div>
+
+            <div class="item indent-2">
+              <div class="left">
+                <label><input id="toggle-br-ac" type="checkbox" checked /> Area codes</label>
+              </div>
+              <div class="filter-wrap">
+                <button id="filter-br-btn" class="filter-btn" type="button">Filter ▾</button>
+              </div>
+            </div>
+            <div id="filter-br-panel" class="filter-panel">
+              <div style="font-weight:800;">Show only</div>
+              <div class="filter-grid" id="filter-br-grid"></div>
+              <div class="filter-actions">
+                <button class="small-btn" id="filter-br-all" type="button">All</button>
+                <button class="small-btn" id="filter-br-none" type="button">None</button>
+              </div>
+            </div>
+
+            <!-- NORTH AMERICA -->
+            <div class="item" style="margin-top:10px;">
+              <div class="left">
+                <label><input id="toggle-na" type="checkbox" checked /> North America</label>
+              </div>
+              <button id="go-na" class="go-btn" title="Go to North America" type="button">🌍</button>
+            </div>
+
+            <div class="item indent-1">
+              <div class="left">
+                <label><input id="toggle-us" type="checkbox" checked /> USA</label>
+              </div>
+              <button id="go-us" class="go-btn" title="Go to USA" type="button">🌍</button>
+            </div>
+
+            <div class="item indent-2">
+              <div class="left">
+                <label><input id="toggle-us-pc" type="checkbox" checked /> Phone codes</label>
+              </div>
+              <div class="filter-wrap">
+                <button id="filter-us-btn" class="filter-btn" type="button">Filter ▾</button>
+              </div>
+            </div>
+            <div id="filter-us-panel" class="filter-panel">
+              <div style="font-weight:800;">Show only</div>
+              <div class="filter-grid" id="filter-us-grid"></div>
+              <div class="filter-actions">
+                <button class="small-btn" id="filter-us-all" type="button">All</button>
+                <button class="small-btn" id="filter-us-none" type="button">None</button>
+              </div>
+            </div>
+
+            <div class="hint">Tip: use 🌍 to jump to a region.</div>
           `;
+
           L.DomEvent.disableClickPropagation(div);
+          L.DomEvent.disableScrollPropagation(div);
+          div.querySelector(".close").addEventListener("click", () => setMenuOpen(false));
           return div;
         }
       });
-      map.addControl(new ToggleControl());
 
-      function wireToggles() {
-        const br = document.getElementById("toggle-br");
-        const ac = document.getElementById("toggle-br-ac");
+      map.addControl(new MenuButtonControl());
+      map.addControl(new MenuPanelControl());
 
-        br.onchange = () => {
-          if (br.checked) {
-            map.addLayer(brazilGroup);
-            if (ac.checked) brazilGroup.addLayer(brazilAreaCodesGroup);
-          } else {
-            map.removeLayer(brazilGroup);
+      function getMenuPanelEl() { return document.querySelector(".menu-panel"); }
+      function isMenuOpen() { const p = getMenuPanelEl(); return p && p.style.display !== "none"; }
+      function setMenuOpen(open) { const p = getMenuPanelEl(); if (p) p.style.display = open ? "block" : "none"; }
+      function toggleMenu() { setMenuOpen(!isMenuOpen()); }
+
+      // ---------------- Continent/country/dataset toggle logic
+      function syncDisabledStates() {
+        const el = (id) => document.getElementById(id);
+
+        const saOn = map.hasLayer(southAmericaGroup);
+        const brOn = saOn && southAmericaGroup.hasLayer(brazilGroup);
+        const brDsOn = brOn && brazilGroup.hasLayer(brazilAreaCodesGroup);
+
+        const naOn = map.hasLayer(northAmericaGroup);
+        const usOn = naOn && northAmericaGroup.hasLayer(usaGroup);
+        const usDsOn = usOn && usaGroup.hasLayer(usaPhoneCodesGroup);
+
+        if (el("toggle-sa")) el("toggle-sa").checked = saOn;
+        if (el("toggle-br")) el("toggle-br").checked = brOn;
+        if (el("toggle-br-ac")) el("toggle-br-ac").checked = brDsOn;
+
+        if (el("toggle-na")) el("toggle-na").checked = naOn;
+        if (el("toggle-us")) el("toggle-us").checked = usOn;
+        if (el("toggle-us-pc")) el("toggle-us-pc").checked = usDsOn;
+
+        if (el("toggle-br")) el("toggle-br").disabled = !saOn;
+        if (el("toggle-br-ac")) el("toggle-br-ac").disabled = !brOn;
+
+        if (el("toggle-us")) el("toggle-us").disabled = !naOn;
+        if (el("toggle-us-pc")) el("toggle-us-pc").disabled = !usOn;
+      }
+
+      // ---------------- Filters UI
+      function buildFilterGrid(datasetKey, gridElId, labelMode) {
+        // labelMode: "1X" or "1XX"
+        const grid = document.getElementById(gridElId);
+        grid.innerHTML = "";
+        for (let d = 1; d <= 9; d++) {
+          const row = document.createElement("div");
+          row.className = "row";
+          row.innerHTML = `
+            <label>
+              <input type="checkbox" data-dataset="${datasetKey}" data-digit="${d}">
+              ${labelMode === "1X" ? `${d}X` : `${d}XX`}
+            </label>
+          `;
+          grid.appendChild(row);
+        }
+      }
+
+      function syncFilterUI(datasetKey) {
+        const allowed = datasets[datasetKey].allowedDigits;
+        document.querySelectorAll(`input[type="checkbox"][data-dataset="${datasetKey}"]`).forEach(cb => {
+          const d = parseInt(cb.getAttribute("data-digit"), 10);
+          cb.checked = allowed.has(d);
+        });
+      }
+
+      function setAllDigits(datasetKey, on) {
+        datasets[datasetKey].allowedDigits = new Set(on ? [1,2,3,4,5,6,7,8,9] : []);
+        syncFilterUI(datasetKey);
+        applyFilter(datasetKey);
+      }
+
+      function wireFilter(datasetKey, btnId, panelId, gridId, allId, noneId, labelMode) {
+        buildFilterGrid(datasetKey, gridId, labelMode);
+        syncFilterUI(datasetKey);
+
+        const btn = document.getElementById(btnId);
+        const panel = document.getElementById(panelId);
+
+        btn.addEventListener("click", () => {
+          panel.style.display = (panel.style.display === "block") ? "none" : "block";
+          btn.textContent = panel.style.display === "block" ? "Filter ▴" : "Filter ▾";
+        });
+
+        panel.addEventListener("change", (e) => {
+          const t = e.target;
+          if (t && t.matches(`input[type="checkbox"][data-dataset="${datasetKey}"]`)) {
+            const d = parseInt(t.getAttribute("data-digit"), 10);
+            if (t.checked) datasets[datasetKey].allowedDigits.add(d);
+            else datasets[datasetKey].allowedDigits.delete(d);
+            applyFilter(datasetKey);
           }
-          ac.disabled = !br.checked;
-        };
+        });
 
-        ac.onchange = () => {
-          if (!br.checked) return;
-          if (ac.checked) brazilGroup.addLayer(brazilAreaCodesGroup);
+        document.getElementById(allId).addEventListener("click", () => setAllDigits(datasetKey, true));
+        document.getElementById(noneId).addEventListener("click", () => setAllDigits(datasetKey, false));
+      }
+
+      function wireMenuHandlers() {
+        const el = (id) => document.getElementById(id);
+
+        // South America chain
+        el("toggle-sa").addEventListener("change", () => {
+          if (el("toggle-sa").checked) map.addLayer(southAmericaGroup);
+          else map.removeLayer(southAmericaGroup);
+          syncDisabledStates();
+        });
+
+        el("toggle-br").addEventListener("change", () => {
+          if (!el("toggle-sa").checked) return;
+          if (el("toggle-br").checked) southAmericaGroup.addLayer(brazilGroup);
+          else southAmericaGroup.removeLayer(brazilGroup);
+          syncDisabledStates();
+        });
+
+        el("toggle-br-ac").addEventListener("change", () => {
+          if (!el("toggle-sa").checked || !el("toggle-br").checked) return;
+          if (el("toggle-br-ac").checked) brazilGroup.addLayer(brazilAreaCodesGroup);
           else brazilGroup.removeLayer(brazilAreaCodesGroup);
-        };
+          syncDisabledStates();
+        });
+
+        // North America chain
+        el("toggle-na").addEventListener("change", () => {
+          if (el("toggle-na").checked) map.addLayer(northAmericaGroup);
+          else map.removeLayer(northAmericaGroup);
+          syncDisabledStates();
+        });
+
+        el("toggle-us").addEventListener("change", () => {
+          if (!el("toggle-na").checked) return;
+          if (el("toggle-us").checked) northAmericaGroup.addLayer(usaGroup);
+          else northAmericaGroup.removeLayer(usaGroup);
+          syncDisabledStates();
+        });
+
+        el("toggle-us-pc").addEventListener("change", () => {
+          if (!el("toggle-na").checked || !el("toggle-us").checked) return;
+          if (el("toggle-us-pc").checked) usaGroup.addLayer(usaPhoneCodesGroup);
+          else usaGroup.removeLayer(usaPhoneCodesGroup);
+          syncDisabledStates();
+        });
+
+        // 🌍 buttons (fixed bounds)
+        el("go-sa").addEventListener("click", () => map.fitBounds(southAmericaBounds, { padding: [20, 20] }));
+        el("go-na").addEventListener("click", () => map.fitBounds(northAmericaBounds, { padding: [20, 20] }));
+        el("go-br").addEventListener("click", () => {
+          if (brazilBounds && brazilBounds.isValid()) map.fitBounds(brazilBounds, { padding: [20, 20] });
+          else map.fitBounds(southAmericaBounds, { padding: [20, 20] });
+        });
+        el("go-us").addEventListener("click", () => map.fitBounds(continentalUsBounds, { padding: [20, 20] }));
+
+        // Filters (Brazil: 1X..9X, USA: 1XX..9XX)
+        wireFilter("br", "filter-br-btn", "filter-br-panel", "filter-br-grid", "filter-br-all", "filter-br-none", "1X");
+        wireFilter("us", "filter-us-btn", "filter-us-panel", "filter-us-grid", "filter-us-all", "filter-us-none", "1XX");
       }
 
       // ---------------- Boot
       (async () => {
-        await loadBrazilAreaCodes();
-        map.addLayer(brazilGroup);
-        wireToggles();
+        try {
+          await loadBrazilAreaCodes();
+          await loadUsaPhoneCodes();
 
-        const b = geoLayer.getBounds();
-        if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+          // Default layers ON
+          map.addLayer(southAmericaGroup);
+          map.addLayer(northAmericaGroup);
+
+          // Default view: continental US
+          map.fitBounds(continentalUsBounds, { padding: [20, 20] });
+
+          // Wire UI
+          wireMenuHandlers();
+          syncDisabledStates();
+
+          // Ensure the SVG defs exist once the renderer is ready
+          ensureSvgDefs();
+
+          // Re-apply filter once more after everything is on-map (ensures pattern fills are set)
+          applyFilter("br");
+          applyFilter("us");
+
+        } catch (err) {
+          console.error(err);
+          alert(err.message);
+        }
       })();
     </script>
   </body>
