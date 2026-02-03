@@ -1,0 +1,201 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Area Codes Map</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+      html, body { height: 100%; margin: 0; }
+      #map { height: 100%; width: 100%; }
+
+      /* Area code labels */
+      .area-label {
+        background: rgba(255,255,255,0.85);
+        border: 1px solid rgba(0,0,0,0.35);
+        border-radius: 10px;
+        padding: 2px 6px;
+        font-weight: 800;
+        font-size: 12px;
+        color: #000;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+        pointer-events: none;
+      }
+      .leaflet-tooltip.area-label { border: none; }
+      .leaflet-tooltip:before { display: none; }
+
+      /* Nested toggle box */
+      .toggle-box {
+        background: rgba(255,255,255,0.95);
+        padding: 10px 12px;
+        border-radius: 10px;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.25);
+        font: 14px/1.25 Arial, sans-serif;
+        min-width: 220px;
+      }
+      .toggle-box .title { font-weight: 800; margin-bottom: 8px; }
+      .toggle-box label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 6px 0;
+        cursor: pointer;
+        user-select: none;
+      }
+      .toggle-box .indent { margin-left: 22px; }
+      .toggle-box input { width: 16px; height: 16px; }
+    </style>
+  </head>
+
+  <body>
+    <div id="map"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+      // ---------------- Map
+      const map = L.map("map", { preferCanvas: true }).setView([0, 0], 2);
+
+      // ---------------- Basemaps (DEFAULT = original OSM)
+      const osmStandard = L.tileLayer(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap contributors",
+        }
+      ).addTo(map); // ✅ default
+
+      const cartoLight = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        {
+          subdomains: "abcd",
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+        }
+      );
+
+      const esriStreets = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+        {
+          maxZoom: 19,
+          attribution: "Tiles &copy; Esri",
+        }
+      );
+
+      // Basemap switcher (only basemaps)
+      L.control.layers(
+        {
+          "OpenStreetMap (default)": osmStandard,
+          "Light (Google-like)": cartoLight,
+          "Esri Streets": esriStreets
+        },
+        null,
+        { collapsed: false }
+      ).addTo(map);
+
+      // ---------------- Color palette
+      const AREA_COLORS = {
+        1: "#b69bc9",
+        2: "#e6d8a3",
+        3: "#f2a65a",
+        4: "#2bb6b1",
+        5: "#a7f0d8",
+        6: "#fff200",
+        7: "#e8a6e6",
+        8: "#f18f8f",
+        9: "#3cff3c"
+      };
+
+      function firstDigit(code) {
+        if (!code) return null;
+        const d = parseInt(String(code)[0], 10);
+        return Number.isFinite(d) ? d : null;
+      }
+
+      // ---------------- Layer hierarchy
+      const brazilGroup = L.layerGroup();
+      const brazilAreaCodesGroup = L.layerGroup();
+      let geoLayer = null;
+
+      async function loadBrazilAreaCodes() {
+        const res = await fetch("./brazil_area_codes.json");
+        const data = await res.json();
+
+        geoLayer = L.geoJSON(data, {
+          style: f => ({
+            color: "rgba(0,0,0,0.55)",
+            weight: 1,
+            fillColor: AREA_COLORS[firstDigit(f?.properties?.AreaCode)] || "#ccc",
+            fillOpacity: 0.65
+          }),
+          onEachFeature: (f, l) => {
+            const code = f?.properties?.AreaCode ?? "?";
+            l.bindPopup(`AreaCode: ${code}`);
+            l.bindTooltip(String(code), {
+              permanent: true,
+              direction: "center",
+              className: "area-label"
+            });
+          }
+        });
+
+        brazilAreaCodesGroup.addLayer(geoLayer);
+        brazilGroup.addLayer(brazilAreaCodesGroup);
+      }
+
+      // ---------------- Custom nested toggle UI
+      const ToggleControl = L.Control.extend({
+        options: { position: "topright" },
+        onAdd() {
+          const div = L.DomUtil.create("div", "toggle-box");
+          div.innerHTML = `
+            <div class="title">Layers</div>
+            <label>
+              <input id="toggle-br" type="checkbox" checked />
+              Brazil
+            </label>
+            <label class="indent">
+              <input id="toggle-br-ac" type="checkbox" checked />
+              Area codes
+            </label>
+          `;
+          L.DomEvent.disableClickPropagation(div);
+          return div;
+        }
+      });
+      map.addControl(new ToggleControl());
+
+      function wireToggles() {
+        const br = document.getElementById("toggle-br");
+        const ac = document.getElementById("toggle-br-ac");
+
+        br.onchange = () => {
+          if (br.checked) {
+            map.addLayer(brazilGroup);
+            if (ac.checked) brazilGroup.addLayer(brazilAreaCodesGroup);
+          } else {
+            map.removeLayer(brazilGroup);
+          }
+          ac.disabled = !br.checked;
+        };
+
+        ac.onchange = () => {
+          if (!br.checked) return;
+          if (ac.checked) brazilGroup.addLayer(brazilAreaCodesGroup);
+          else brazilGroup.removeLayer(brazilAreaCodesGroup);
+        };
+      }
+
+      // ---------------- Boot
+      (async () => {
+        await loadBrazilAreaCodes();
+        map.addLayer(brazilGroup);
+        wireToggles();
+
+        const b = geoLayer.getBounds();
+        if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+      })();
+    </script>
+  </body>
+</html>
